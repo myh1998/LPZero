@@ -5,12 +5,14 @@ from transformers.models.gpt2.modeling_gpt2 import GPT2Attention, GPT2Block
 from lpzero.operators import unary_operation, binary_operation
 from lpzero.structures.utils import convert_to_float
 import transformers
-import os 
+import os
 # from lpzero.operators.zc_inputs import compute_weight, compute_gradient
 from lpzero.structures import TreeStructure
-import yaml 
-import re 
-import numpy as np 
+import yaml
+import re
+import numpy as np
+
+from lpzero.model.lora import LoRAWrappedModule
 
 from lpzero.model.model_loader import load_model_from_config
 from lpzero.model.hf_gpt2.model_hf_gpt2 import HfGPT2Flex
@@ -20,8 +22,12 @@ def get_head_metric_array(net):
     head_outputs = []
     
     for layer in net.modules():
-        if isinstance(layer, transformers.Conv1D) or isinstance(layer, nn.Linear):
-            head_outputs.append(layer.weight)
+        if isinstance(layer, (transformers.Conv1D, nn.Linear, LoRAWrappedModule)):
+            if hasattr(layer, 'weight'):
+                head_outputs.append(layer.weight)
+            if isinstance(layer, LoRAWrappedModule):
+                head_outputs.append(layer.lora_A)
+                head_outputs.append(layer.lora_B)
     return head_outputs
 
 def get_act_metric_array(net, inputs, targets):
@@ -31,7 +37,7 @@ def get_act_metric_array(net, inputs, targets):
         act_outputs.append(output.detach())
 
     for layer in net.modules():
-        if isinstance(layer, transformers.Conv1D) or isinstance(layer, nn.Linear):
+        if isinstance(layer, (transformers.Conv1D, nn.Linear, LoRAWrappedModule)):
             layer.register_forward_hook(activation_hook)
         
     N = inputs.shape[0]

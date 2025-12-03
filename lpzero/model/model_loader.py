@@ -12,6 +12,7 @@ from lpzero.model.config_base import Config, OnnxConfig, SearchConfig
 from lpzero.model.model_base import ArchaiModel
 from lpzero.model.model_dict import (MODELS, MODELS_CONFIGS,
                                           MODELS_SEARCH_CONFIGS, MODELS_PARAMS_FORMULAE)
+from lpzero.model.lora import apply_lora_to_model
 
 def load_model_formula(model_type: str) -> Callable:
     """Loads an available analytical parameters formula.
@@ -45,7 +46,13 @@ def load_model_from_config(model_type: str, model_config: Dict[str, Any]) -> Arc
     if model_type not in MODELS.keys():
         raise Exception(f'model_type: {model_type} not supported yet.')
 
-    return MODELS[model_type](**model_config)
+    cfg = dict(model_config)
+    lora_cfg = cfg.pop('lora_config', None)
+
+    model = MODELS[model_type](**cfg)
+    if lora_cfg:
+        apply_lora_to_model(model, lora_cfg)
+    return model
 
 
 def load_model_from_checkpoint(model_type: str,
