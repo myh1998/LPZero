@@ -36,11 +36,41 @@ CUDA_VISIBLE_DEVICES=2 python lpzero/runner/eval_rank_gpt2.py \
      > ./logs/rank_corr_${METHOD}_aftersearch.log 2>&1 &
 ```
 
-How to train? 
+How to train?
 
-```bash 
+```bash
 bash scripts/run_train.sh
 ```
+
+## Quick environment setup for the LoRA demo
+
+To run the syntax check used in the LoRA integration demo (`python -m compileall lpzero/model/lora.py lpzero/runner/demo_lora_lpzero.py`), prepare a minimal Python environment with PyTorch and Transformers:
+
+1. **Create and activate a virtual environment (Python ≥3.9):**
+   ```bash
+   python3 -m venv .venv
+   source .venv/bin/activate
+   pip install --upgrade pip
+   ```
+
+2. **Install PyTorch with CPU wheels (sufficient for `compileall`):**
+   ```bash
+   pip install torch==2.1.2 --index-url https://download.pytorch.org/whl/cpu
+   ```
+
+3. **Install the project Python dependencies:**
+   ```bash
+   pip install -r requirements.txt
+   ```
+
+   If `apex` is unavailable in your environment, you can skip it by installing the remaining packages individually (for example `pip install transformers datasets deap`), because the compile check for the LoRA demo does not require `apex`.
+
+4. **Run the compile-time check for the LoRA demo scripts:**
+   ```bash
+   python -m compileall lpzero/model/lora.py lpzero/runner/demo_lora_lpzero.py
+   ```
+
+These steps install only the pieces needed to verify the LoRA demo code paths; full training or inference runs may need GPU builds of PyTorch and optional CUDA tooling.
 
 ## Experiments
 
