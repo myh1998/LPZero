@@ -6,6 +6,7 @@ import torch.nn as nn
 
 from lpzero.model.flexibert.modeling_electra import ElectraLayer, ElectraModel
 from lpzero.model.hf_gpt2.model_hf_gpt2 import HfGPT2, HfGPT2Flex
+from lpzero.model.lora import LoRAWrappedModule
 from . import zc_candidates
 from lpzero.predictor.measures.jacob_cov import modify_net, get_batch_jacobian
 import transformers 
@@ -52,7 +53,7 @@ def compute_activation(model, inputs, targets=None, **kwargs) -> List:
         def activation_hook(module, input, output):
             act_outputs.append(output.detach())
         for layer in model.modules():
-            if isinstance(layer, transformers.Conv1D) or isinstance(layer, nn.Linear):
+            if isinstance(layer, (transformers.Conv1D, nn.Linear, LoRAWrappedModule)):
                 layer.register_forward_hook(activation_hook)
         model.forward(inputs, targets, mems=None)
         return act_outputs 
@@ -88,7 +89,7 @@ def compute_head(model, inputs, targets=None, **kwargs) -> List:
         def head_hook(module, input, output):
             head_outputs.append(output.detach())
         for layer in model.modules():
-            if isinstance(layer, transformers.Conv1D) or isinstance(layer, nn.Linear):
+            if isinstance(layer, (transformers.Conv1D, nn.Linear, LoRAWrappedModule)):
                 layer.register_forward_hook(head_hook)
         model.forward(inputs, targets, mems=None)
         return head_outputs
@@ -149,9 +150,14 @@ def compute_gradient(model, inputs, targets=None, **kwargs) -> List:
         
         grad_output = []
         for layer in model.modules():
-            if isinstance(layer, transformers.Conv1D) or isinstance(layer, nn.Linear):
+            if isinstance(layer, (transformers.Conv1D, nn.Linear, LoRAWrappedModule)):
                 if layer.weight.grad is not None:
                     grad_output.append(layer.weight.grad)
+                if isinstance(layer, LoRAWrappedModule):
+                    if layer.lora_A.grad is not None:
+                        grad_output.append(layer.lora_A.grad)
+                    if layer.lora_B.grad is not None:
+                        grad_output.append(layer.lora_B.grad)
         return grad_output
     elif isinstance(model, LlamaForCausalLM):
         # Perform the forward pass
@@ -192,9 +198,12 @@ def compute_weight(model, inputs, targets=None, **kwargs) -> List:
     elif isinstance(model, (HfGPT2, HfGPT2Flex)):
         weight_list = []
         for layer in model.modules():
-            if isinstance(layer, transformers.Conv1D) or isinstance(layer, nn.Linear):
-                if layer.weight is not None:
+            if isinstance(layer, (transformers.Conv1D, nn.Linear, LoRAWrappedModule)):
+                if hasattr(layer, 'weight') and layer.weight is not None:
                     weight_list.append(layer.weight.detach())
+                if isinstance(layer, LoRAWrappedModule):
+                    weight_list.append(layer.lora_A.detach())
+                    weight_list.append(layer.lora_B.detach())
         return weight_list
     elif isinstance(model, LlamaForCausalLM):
         weight_list = []
